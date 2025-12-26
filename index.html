@@ -1,0 +1,133 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI PDF 阅读器</title>
+    
+    <!-- CSS Dependencies -->
+    <link rel="stylesheet" href="https://unpkg.com/react-pdf@10.0.0/dist/Page/AnnotationLayer.css" />
+    <link rel="stylesheet" href="https://unpkg.com/react-pdf@10.0.0/dist/Page/TextLayer.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+    <!-- KaTeX CSS for LaTeX rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+
+    <script>
+      // Shim process for browser environment to prevent crashes on process.env access
+      if (typeof process === "undefined") {
+        window.process = { env: {} };
+      }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <style>
+      /* Modern Font Stack */
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Custom scrollbar for a cleaner look */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #e4e4e7; /* zinc-200 */
+        border-radius: 99px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #d4d4d8; /* zinc-300 */
+      }
+
+      /* Utility: Hide Scrollbar */
+      .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+      }
+      .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+      }
+
+      /* React PDF Layer Styles */
+      .react-pdf__Page__textContent {
+        user-select: text;
+        -webkit-user-select: text;
+        pointer-events: auto;
+        z-index: 10; 
+        line-height: 1.0; 
+      }
+      
+      .react-pdf__Page__annotations {
+        pointer-events: none;
+        z-index: 20;
+      }
+
+      /* CRITICAL FIX: Ensure text remains transparent even when selected */
+      .react-pdf__Page__textContent span {
+        color: transparent !important;
+        cursor: text; 
+      }
+
+      .react-pdf__Page__textContent span::selection {
+        color: transparent !important;
+        background: rgba(59, 130, 246, 0.2); /* Softer Blue selection overlay */
+      }
+      
+      /* Global selection fallback */
+      ::selection {
+        background: rgba(59, 130, 246, 0.2);
+        color: inherit;
+      }
+
+      /* Force code block text color to be light in dark mode/highlight.js blocks */
+      .hljs {
+        color: #e4e4e7 !important; /* zinc-200 */
+        background: #18181b !important; /* zinc-900 */
+      }
+      
+      /* Ensure markdown code blocks are readable */
+      pre code {
+        font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+        font-size: 0.95em;
+      }
+
+      /* Fix for KaTeX overflow in chat */
+      .katex-display {
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0.5rem 0;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "uuid": "https://esm.sh/uuid@^10.0.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-markdown": "https://esm.sh/react-markdown@^10.1.0?bundle",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "remark-gfm": "https://esm.sh/remark-gfm@^4.0.1?bundle",
+    "remark-math": "https://esm.sh/remark-math@^6.0.0?bundle",
+    "rehype-katex": "https://esm.sh/rehype-katex@^7.0.0?bundle",
+    "highlight.js/": "https://esm.sh/highlight.js@^11.11.1/",
+    "react-pdf/": "https://esm.sh/react-pdf@^10.0.0/",
+    "react-pdf": "https://esm.sh/react-pdf@^10.0.0",
+    "pdfjs-dist": "https://esm.sh/pdfjs-dist@5.4.296",
+    "pdfjs-dist/": "https://esm.sh/pdfjs-dist@5.4.296/",
+    "pdfjs-dist/build/pdf.worker.mjs": "https://esm.sh/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs",
+    "rehype-highlight": "https://esm.sh/rehype-highlight@^7.0.2?bundle"
+  }
+}
+</script>
+</head>
+  <body class="bg-zinc-50 text-zinc-900 h-screen overflow-hidden antialiased">
+    <div id="root" class="h-full"></div>
+  </body>
+</html>

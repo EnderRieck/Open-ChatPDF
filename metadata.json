@@ -1,0 +1,5 @@
+{
+  "name": "AI PDF Reader",
+  "description": "A split-screen PDF reader with AI chat capabilities, context awareness, and visual page analysis using Gemini.",
+  "requestFramePermissions": []
+}
