@@ -3,7 +3,7 @@
 
 这是一个基于 Web 的现代化双栏 PDF 阅读器，集成了 Google Gemini (和 OpenAI 兼容接口) 的强大 AI 能力。它允许你在阅读文档的同时，与其进行深度对话、总结摘要、甚至进行视觉层面的页面分析。
 
-![App Screenshot](https://via.placeholder.com/800x450?text=AI+PDF+Reader+Preview)
+![App Screenshot](./assets/preview.png)
 
 ## ✨ 核心功能
 
@@ -95,4 +95,4 @@
 
 ---
 
-_Created by AI PDF Reader Team_
+_Created by zby and Google Gemini_
