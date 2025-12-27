@@ -1,11 +1,12 @@
 
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { ArrowUp, StopCircle, X, Pencil, RotateCw, Check, Sparkles, Paperclip, Plus, Quote } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
+import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { Message } from '../types';
 
 interface ChatInterfaceProps {
@@ -45,21 +46,28 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   // State to track dynamic height of the footer
   const [footerHeight, setFooterHeight] = useState(0);
   
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editAreaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const footerRef = useRef<HTMLDivElement>(null); // Ref for the floating input area
 
-  const scrollToBottom = () => {
-    if (!editingId) {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Filter out system messages for display
+  const displayMessages = messages.filter(m => m.role !== 'system');
+
+  const scrollToBottom = useCallback(() => {
+    if (!editingId && virtuosoRef.current) {
+        virtuosoRef.current.scrollToIndex({
+            index: displayMessages.length - 1,
+            behavior: 'smooth',
+            align: 'end'
+        });
     }
-  };
+  }, [editingId, displayMessages.length]);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages.length, pendingAttachment, isLoading, footerHeight, activeQuote]); 
+  }, [messages.length, pendingAttachment, isLoading, footerHeight, activeQuote, scrollToBottom]); 
 
   // Handle quoted text insertion
   useEffect(() => {
@@ -195,21 +203,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-white relative">
-      {/* Messages Area */}
+      {/* Messages Area - Virtual Scroll */}
       <div 
-        className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scroll-smooth"
+        className="flex-1 overflow-hidden relative"
         style={{ paddingBottom: footerHeight ? `${footerHeight}px` : '160px' }}
       >
-        {messages.filter(m => m.role !== 'system').map((msg, index, arr) => {
+        <Virtuoso
+          ref={virtuosoRef}
+          data={displayMessages}
+          followOutput="smooth"
+          initialTopMostItemIndex={displayMessages.length - 1}
+          className="h-full"
+          itemContent={(index, msg) => {
             const isEditing = editingId === msg.id;
-            const isLastModelMessage = msg.role === 'model' && index === arr.length - 1;
+            const isLastModelMessage = msg.role === 'model' && index === displayMessages.length - 1;
             const isUser = msg.role === 'user';
 
             return (
-                <div
-                    key={msg.id}
-                    className="group w-full"
-                >
+                <div className="group w-full px-4 md:px-6 py-3">
                     <div
                     className={`relative w-full rounded-2xl px-5 py-4 text-base shadow-sm border ${
                         isUser
@@ -257,6 +268,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                             src={msg.attachments[0].data} 
                                             alt="Context" 
                                             className="max-h-60 rounded-xl border border-white/20 shadow-sm"
+                                            loading="lazy"
                                         />
                                     </div>
                                 )}
@@ -335,20 +347,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     </div>
                 </div>
             );
-        })}
-        
-        {/* Loading Indicator */}
-        {isLoading && (
-            <div className="flex justify-start w-full animate-in fade-in duration-300">
-                 <div className="bg-white border border-zinc-100 px-4 py-3 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-3">
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center animate-spin">
-                         <RotateCw size={10} className="text-white" />
-                      </div>
-                      <span className="text-sm text-zinc-500 font-medium">AI 思考中...</span>
-                 </div>
-            </div>
-        )}
-        <div ref={messagesEndRef} />
+          }}
+          components={{
+            Footer: () => isLoading ? (
+              <div className="flex justify-start w-full px-4 md:px-6 py-3 animate-in fade-in duration-300">
+                   <div className="bg-white border border-zinc-100 px-4 py-3 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-3">
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center animate-spin">
+                           <RotateCw size={10} className="text-white" />
+                        </div>
+                        <span className="text-sm text-zinc-500 font-medium">AI 思考中...</span>
+                   </div>
+              </div>
+            ) : null
+          }}
+        />
       </div>
 
       {/* Floating Input Area */}
