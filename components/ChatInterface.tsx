@@ -208,6 +208,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         className="flex-1 overflow-hidden relative"
         style={{ paddingBottom: footerHeight ? `${footerHeight}px` : '160px' }}
       >
+        {/* Embossed Logo Background - shows when no messages */}
+        {displayMessages.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none" style={{ marginTop: '-80px' }}>
+            <div className="flex flex-col items-center gap-4 opacity-[0.05]">
+              <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-zinc-900">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <path d="M9 13h6" />
+                <path d="M9 17h6" />
+              </svg>
+              <span className="text-6xl font-bold tracking-tight text-zinc-900">ChatPDF</span>
+            </div>
+          </div>
+        )}
         <Virtuoso
           ref={virtuosoRef}
           data={displayMessages}
