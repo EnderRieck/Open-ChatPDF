@@ -8,6 +8,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   model: 'gemini-3-flash-preview',
   temperature: 0.7,
   storageType: 'browser',
+  // Image Generation Defaults
+  imageGenEnabled: false,
+  imageGenBaseUrl: '',
+  imageGenModel: '',
+  imageGenApiKey: '',
 };
 
 export const AVAILABLE_MODELS = [

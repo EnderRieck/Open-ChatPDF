@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { ArrowUp, StopCircle, X, Pencil, RotateCw, Check, Sparkles, Paperclip, Plus, Quote } from 'lucide-react';
+import { ArrowUp, StopCircle, X, Pencil, RotateCw, Check, Sparkles, Paperclip, Plus, Quote, Image } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -12,6 +12,7 @@ import { Message } from '../types';
 interface ChatInterfaceProps {
   messages: Message[];
   isLoading: boolean;
+  activeToolCall?: string | null;
   onSendMessage: (text: string, attachment?: string) => void;
   onEditMessage?: (id: string, newText: string) => void;
   onRegenerate?: () => void;
@@ -27,6 +28,7 @@ interface ChatInterfaceProps {
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
   messages,
   isLoading,
+  activeToolCall,
   onSendMessage,
   onEditMessage,
   onRegenerate,
@@ -364,12 +366,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           }}
           components={{
             Footer: () => isLoading ? (
-              <div className="flex justify-start w-full px-4 md:px-6 py-3 animate-in fade-in duration-300">
+              <div className="flex flex-col gap-2 w-full px-4 md:px-6 py-3 animate-in fade-in duration-300">
+                   {activeToolCall && (
+                     <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 px-4 py-3 rounded-2xl shadow-sm flex items-center gap-3">
+                          <div className="w-5 h-5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
+                             <Image size={10} className="text-white" />
+                          </div>
+                          <span className="text-sm text-purple-700 font-medium">🎨 正在调用图像生成工具...</span>
+                     </div>
+                   )}
                    <div className="bg-white border border-zinc-100 px-4 py-3 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-3">
                         <div className="w-5 h-5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center animate-spin">
                            <RotateCw size={10} className="text-white" />
                         </div>
-                        <span className="text-sm text-zinc-500 font-medium">AI 思考中...</span>
+                        <span className="text-sm text-zinc-500 font-medium">{activeToolCall ? '生成图片中...' : 'AI 思考中...'}</span>
                    </div>
               </div>
             ) : null

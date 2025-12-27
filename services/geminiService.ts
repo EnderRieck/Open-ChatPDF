@@ -1,6 +1,23 @@
 
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { AppSettings, Message } from "../types";
+import { imageGenService } from "./imageGenService";
+
+// Tool definition for image generation
+const IMAGE_GEN_TOOL = {
+  name: "generate_image",
+  description: "生成一张图片。当用户请求创建、绘制、生成图片或需要可视化内容时使用此工具。",
+  parameters: {
+    type: "object",
+    properties: {
+      prompt: {
+        type: "string",
+        description: "详细的图片描述，用于生成图片。应该是英文的，包含风格、内容、颜色等细节。"
+      }
+    },
+    required: ["prompt"]
+  }
+};
 
 export class LLMService {
   private client: GoogleGenAI | null = null;
@@ -11,6 +28,9 @@ export class LLMService {
     const apiKey = settings.apiKey || envApiKey;
     
     this.currentSettings = settings;
+
+    // Initialize image generation service
+    imageGenService.initialize(settings);
 
     // Only init Gemini client if provider is gemini and we have a key
     if (settings.provider === 'gemini' && apiKey) {
@@ -61,13 +81,18 @@ export class LLMService {
       }
   }
 
-  async *streamChat(messages: Message[], contextSummary?: string): AsyncGenerator<string, void, unknown> {
+  async *streamChat(messages: Message[], contextSummary?: string): AsyncGenerator<string | { type: 'image', data: string }, void, unknown> {
     if (!this.currentSettings) throw new Error("服务未初始化");
 
     const systemInstruction = "你是一个嵌入在PDF阅读器中的得力AI助手。请始终用中文回答用户的问题。";
     let fullSystemPrompt = systemInstruction;
     if (contextSummary) {
       fullSystemPrompt += `\n\n以下是当前打开的PDF文档摘要：\n${contextSummary}\n\n请在相关时基于此上下文回答问题。`;
+    }
+    
+    // Add tool instruction if image generation is enabled
+    if (imageGenService.isEnabled()) {
+      fullSystemPrompt += `\n\n你可以使用 generate_image 工具来生成图片。当用户要求创建、绘制或生成图片时，请调用此工具。`;
     }
 
     if (this.currentSettings.provider === 'gemini') {
@@ -79,7 +104,7 @@ export class LLMService {
 
   // --- Gemini Implementation ---
 
-  private async *streamChatGemini(messages: Message[], systemInstruction: string): AsyncGenerator<string, void, unknown> {
+  private async *streamChatGemini(messages: Message[], systemInstruction: string): AsyncGenerator<string | { type: 'image', data: string }, void, unknown> {
     if (!this.client || !this.currentSettings) {
         yield "请检查 API 密钥设置。";
         return;
@@ -116,12 +141,21 @@ export class LLMService {
     if (lastMessage.content) newParts.push({ text: lastMessage.content });
     else if (newParts.length === 0) newParts.push({ text: " " });
 
+    // Build config with optional tools
+    const config: any = {
+      systemInstruction: systemInstruction,
+      temperature: this.currentSettings.temperature,
+    };
+    
+    if (imageGenService.isEnabled()) {
+      config.tools = [{
+        functionDeclarations: [IMAGE_GEN_TOOL]
+      }];
+    }
+
     const chat = this.client.chats.create({
       model: this.currentSettings.model,
-      config: {
-        systemInstruction: systemInstruction,
-        temperature: this.currentSettings.temperature,
-      },
+      config,
       history: chatHistory as any,
     });
 
@@ -130,9 +164,36 @@ export class LLMService {
             message: newParts
         });
 
+        let pendingFunctionCall: { name: string; args: any } | null = null;
+
         for await (const chunk of resultStream) {
             const c = chunk as GenerateContentResponse;
+            
+            // Check for function calls
+            const functionCall = c.candidates?.[0]?.content?.parts?.[0]?.functionCall;
+            if (functionCall) {
+                pendingFunctionCall = {
+                    name: functionCall.name,
+                    args: functionCall.args
+                };
+            }
+            
             if (c.text) yield c.text;
+        }
+
+        // Handle function call after stream completes
+        if (pendingFunctionCall && pendingFunctionCall.name === 'generate_image') {
+            yield { type: 'tool_call', name: 'generate_image' };
+            
+            const prompt = pendingFunctionCall.args?.prompt || '';
+            const imageData = await imageGenService.generateImage(prompt);
+            
+            if (imageData) {
+                yield { type: 'image', data: imageData };
+                yield "\n\n✅ 图片生成完成！";
+            } else {
+                yield "\n\n❌ 图片生成失败，请检查图像生成服务配置。";
+            }
         }
     } catch (e: any) {
         console.error("Gemini Stream error", e);
@@ -150,7 +211,7 @@ export class LLMService {
       return `${cleanUrl}/chat/completions`;
   }
 
-  private async *streamChatOpenAI(messages: Message[], systemInstruction: string): AsyncGenerator<string, void, unknown> {
+  private async *streamChatOpenAI(messages: Message[], systemInstruction: string): AsyncGenerator<string | { type: 'image', data: string }, void, unknown> {
       if (!this.currentSettings) return;
 
       const apiMessages = [
@@ -175,12 +236,20 @@ export class LLMService {
           })
       ];
 
-      const payload = {
+      // Build payload with optional tools
+      const payload: any = {
           model: this.currentSettings.model,
           messages: apiMessages,
           temperature: this.currentSettings.temperature,
           stream: true
       };
+
+      if (imageGenService.isEnabled()) {
+          payload.tools = [{
+              type: "function",
+              function: IMAGE_GEN_TOOL
+          }];
+      }
 
       const url = this.getOpenAIUrl(this.currentSettings.baseUrl);
       
@@ -208,6 +277,7 @@ export class LLMService {
           const reader = response.body.getReader();
           const decoder = new TextDecoder("utf-8");
           let buffer = "";
+          let toolCallBuffer: { name: string; arguments: string } | null = null;
 
           while (true) {
               const { done, value } = await reader.read();
@@ -223,7 +293,20 @@ export class LLMService {
                   if (trimmed.startsWith('data: ')) {
                       try {
                           const json = JSON.parse(trimmed.slice(6));
-                          const content = json.choices?.[0]?.delta?.content;
+                          const delta = json.choices?.[0]?.delta;
+                          
+                          // Handle tool calls
+                          if (delta?.tool_calls?.[0]) {
+                              const toolCall = delta.tool_calls[0];
+                              if (toolCall.function?.name) {
+                                  toolCallBuffer = { name: toolCall.function.name, arguments: '' };
+                              }
+                              if (toolCall.function?.arguments && toolCallBuffer) {
+                                  toolCallBuffer.arguments += toolCall.function.arguments;
+                              }
+                          }
+                          
+                          const content = delta?.content;
                           if (content) {
                               yield content;
                           }
@@ -231,6 +314,26 @@ export class LLMService {
                           console.warn("Failed to parse SSE JSON", trimmed);
                       }
                   }
+              }
+          }
+
+          // Handle tool call after stream completes
+          if (toolCallBuffer && toolCallBuffer.name === 'generate_image') {
+              yield { type: 'tool_call', name: 'generate_image' };
+              
+              try {
+                  const args = JSON.parse(toolCallBuffer.arguments);
+                  const prompt = args?.prompt || '';
+                  const imageData = await imageGenService.generateImage(prompt);
+                  
+                  if (imageData) {
+                      yield { type: 'image', data: imageData };
+                      yield "\n\n✅ 图片生成完成！";
+                  } else {
+                      yield "\n\n❌ 图片生成失败，请检查图像生成服务配置。";
+                  }
+              } catch (e) {
+                  yield "\n\n❌ 图片生成失败：参数解析错误";
               }
           }
       } catch (e: any) {

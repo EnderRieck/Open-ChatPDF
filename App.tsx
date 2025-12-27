@@ -50,6 +50,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<string | null>(null);
   const [quotedText, setQuotedText] = useState<string | null>(null);
+  const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
 
   // --- Initialization Logic ---
 
@@ -384,8 +385,10 @@ const App: React.FC = () => {
 
   const runChatStream = async (sessionId: string, messagesToProcess: Message[]) => {
       setIsLoading(true);
+      setActiveToolCall(null);
       try {
           let fullResponse = "";
+          let generatedImages: { type: 'image', data: string }[] = [];
           const responseId = uuidv4();
           
           // Optimistic update for UI
@@ -411,13 +414,56 @@ const App: React.FC = () => {
           const stream = geminiService.streamChat(messagesToProcess, contextToUse);
           
           for await (const chunk of stream) {
+              if (typeof chunk === 'object' && 'type' in chunk) {
+                  const chunkObj = chunk as { type: string; data?: string; name?: string };
+                  
+                  // Handle tool call notification
+                  if (chunkObj.type === 'tool_call' && chunkObj.name) {
+                      setActiveToolCall(chunkObj.name);
+                      continue;
+                  }
+                  
+                  // Handle image chunks
+                  if (chunkObj.type === 'image' && chunkObj.data) {
+                      generatedImages.push({ type: 'image', data: chunkObj.data });
+                      setActiveToolCall(null);
+                      continue;
+                  }
+              }
+              
+              // Handle text chunks
               fullResponse += chunk;
               setSessions(prev => prev.map(s => {
                   if (s.id === sessionId) {
                       const newMsgs = [...s.messages];
                       const lastMsgIndex = newMsgs.findIndex(m => m.id === responseId);
                       if (lastMsgIndex !== -1) {
-                          newMsgs[lastMsgIndex] = { ...newMsgs[lastMsgIndex], content: fullResponse };
+                          newMsgs[lastMsgIndex] = { 
+                              ...newMsgs[lastMsgIndex], 
+                              content: fullResponse,
+                              // Add generated images as attachments
+                              attachments: generatedImages.length > 0 
+                                  ? generatedImages.map(img => ({ type: 'image' as const, data: img.data }))
+                                  : undefined
+                          };
+                      }
+                      return { ...s, messages: newMsgs };
+                  }
+                  return s;
+              }));
+          }
+
+          // Final update with all images
+          if (generatedImages.length > 0) {
+              setSessions(prev => prev.map(s => {
+                  if (s.id === sessionId) {
+                      const newMsgs = [...s.messages];
+                      const lastMsgIndex = newMsgs.findIndex(m => m.id === responseId);
+                      if (lastMsgIndex !== -1) {
+                          newMsgs[lastMsgIndex] = { 
+                              ...newMsgs[lastMsgIndex], 
+                              attachments: generatedImages.map(img => ({ type: 'image' as const, data: img.data }))
+                          };
                       }
                       return { ...s, messages: newMsgs };
                   }
@@ -450,6 +496,7 @@ const App: React.FC = () => {
         }));
       } finally {
           setIsLoading(false);
+          setActiveToolCall(null);
       }
   };
 
@@ -776,6 +823,7 @@ const App: React.FC = () => {
                 <ChatInterface 
                     messages={currentSessionId ? sessions.find(s => s.id === currentSessionId)?.messages || [] : []}
                     isLoading={isLoading}
+                    activeToolCall={activeToolCall}
                     onSendMessage={handleSendMessage}
                     onEditMessage={handleEditMessage}
                     onRegenerate={handleRegenerate}

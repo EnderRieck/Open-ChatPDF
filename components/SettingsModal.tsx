@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Download, Upload, AlertCircle, FolderOpen, HardDrive, Database, FolderInput, Server, Cpu } from 'lucide-react';
+import { X, Save, Download, Upload, AlertCircle, FolderOpen, HardDrive, Database, FolderInput, Server, Cpu, Image, ToggleLeft, ToggleRight } from 'lucide-react';
 import { AppSettings, StorageType, ApiProvider } from '../types';
 import { AVAILABLE_MODELS } from '../constants';
 
@@ -260,6 +260,64 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="w-full accent-blue-600"
                 />
               </div>
+          </div>
+
+          <hr className="border-zinc-100" />
+
+          {/* Image Generation Settings */}
+          <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                  <Image size={14} /> 图像生成工具
+                </h3>
+                <button
+                  onClick={() => setLocalSettings({ ...localSettings, imageGenEnabled: !localSettings.imageGenEnabled })}
+                  className={`p-1 rounded-full transition-colors ${localSettings.imageGenEnabled ? 'text-emerald-600' : 'text-zinc-400'}`}
+                >
+                  {localSettings.imageGenEnabled ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
+                </button>
+              </div>
+              
+              {localSettings.imageGenEnabled && (
+                <div className="space-y-3 pl-1">
+                  <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg text-xs text-blue-800 leading-relaxed">
+                    启用后，AI 可以在需要时调用图像生成工具来创建图片。支持 OpenAI 兼容的图像生成 API（如 DALL-E、Stable Diffusion 等）。
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">Base URL</label>
+                    <input
+                      type="text"
+                      value={localSettings.imageGenBaseUrl}
+                      onChange={(e) => setLocalSettings({ ...localSettings, imageGenBaseUrl: e.target.value })}
+                      placeholder="https://api.openai.com/v1"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">模型名称</label>
+                    <input
+                      type="text"
+                      value={localSettings.imageGenModel}
+                      onChange={(e) => setLocalSettings({ ...localSettings, imageGenModel: e.target.value })}
+                      placeholder="dall-e-3"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">API 密钥 (可选，留空则使用主 API Key)</label>
+                    <input
+                      type="password"
+                      value={localSettings.imageGenApiKey}
+                      onChange={(e) => setLocalSettings({ ...localSettings, imageGenApiKey: e.target.value })}
+                      placeholder="sk-..."
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono"
+                    />
+                  </div>
+                </div>
+              )}
           </div>
 
           <hr className="border-zinc-100" />

@@ -31,6 +31,11 @@ export interface AppSettings {
   temperature: number;
   storageType: StorageType;
   localDirectoryName?: string; // Persisted folder name
+  // Image Generation Settings
+  imageGenEnabled: boolean;
+  imageGenBaseUrl: string;
+  imageGenModel: string;
+  imageGenApiKey: string;
 }
 
 export interface PdfDocumentInfo {
